@@ -19,11 +19,11 @@ typedef struct imagemPGM {
 /* Le o formato, largura, altura e max_pix de um arquivo pgm 
    Considera que o arquivo não tem comentários
    Armazena as informações do cabeçalho na struct imagemPGM */
-imagemPGM *le_cabecalho_pgm(FILE *arquivo);
+imagemPGM *le_cabecalho_pgm(FILE *arquivo, imagemPGM *imagem);
 
 /* Le um arquivo P2 (ASCII) 
    Armazena a matriz da imagem na struct imagemPGM */
-imagemPGM *le_p2(FILE *arquivo);
+imagemPGM *le_p2(FILE *arquivo, imagemPGM *imagem);
 
 /* Le um arquivo P5 (Binario)
    Armazena a matriz da imagem na struct imagemPGM */
