@@ -5,21 +5,19 @@ ENTREGA = LBP
 CC = gcc
 
 # arquivos-objeto
-	objects = lbp.o
+	objects = lbp.o processa_imagem.o
      
 all: lbp
 
-lbp: lbp.o
-	$(CC) -o lbp lbp.o $(LDFLAGS)
+lbp: lbp.o processa_imagem.o
+	$(CC) -o lbp lbp.o processa_imagem.o $(LDFLAGS)
 
-# arquivo TGZ para entregar
-entrega: clean
-	mkdir $(ENTREGA)
-	cp *.c *.h makefile $(ENTREGA)
-	chmod 600 $(ENTREGA)/*
-	tar czvf $(ENTREGA).tgz $(ENTREGA)
-	rm -rf $(ENTREGA)
-	@echo "Arquivo $(ENTREGA).tgz criado para entrega"
+lpb.o: lbp.c
+	$(CC) -c $(CFLAGS) lbp.c
+
+processa_imagem.o: processa_imagem.c
+	$(CC) -c $(CFLAGS) processa_imagem.c
 
 clean:
 	rm -f $(objects) lbp
+
