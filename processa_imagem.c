@@ -20,15 +20,29 @@ imagemPGM *le_cabecalho_pgm(FILE *arquivo, imagemPGM *imagem){
 }
 
 imagemPGM *le_p2(FILE *arquivo, imagemPGM *imagem){
-    int pixel;
 
-    for(int i=0; i < imagem->largura; i++){
-        for(int j=0; j < imagem->altura; j++){
-            fscanf(arquivo, "%d", &pixel);
-            imagem->pixels[i][j] = pixel;
+    imagem->pixels = aloca_imagem(imagem);
+
+    for(int i = 0; i < imagem->altura; i++){
+        for(int j = 0; j < imagem->largura; j++){
+            fscanf(arquivo, "%d", &imagem->pixels[i][j]);
+            printf("%d ", imagem->pixels[i][j]);
         }
     }
-    printf("%d", imagem->pixels[0][0]);
+    
     return imagem;
+}
+
+imagemPGM *le_p5(FILE *arquivo){
+    
+}
+
+int **aloca_imagem(imagemPGM *imagem){
+
+    imagem->pixels = (int **)malloc(imagem->altura * sizeof(int *));
+    for (int i = 0; i < imagem->altura; i++) {
+        imagem->pixels[i] = (int *)malloc(imagem->largura * sizeof(int));
+    }
+    return imagem->pixels;
 }
 

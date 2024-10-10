@@ -7,7 +7,7 @@ int main() {
     FILE *file_in;
     imagemPGM *imagem;
 
-    file_in = fopen("Apuleia1.pgm", "rb");
+    file_in = fopen("imagem.pgm", "rb");
     imagem = (imagemPGM *)malloc(sizeof(imagemPGM));
     if (imagem == NULL) {
         fprintf(stderr, "Erro ao alocar memória para imagemPGM\n");
@@ -15,7 +15,8 @@ int main() {
     }
 
     le_cabecalho_pgm(file_in, imagem);
-    le_p2(file_in, imagem);
-    
+
+    le_p5(file_in, imagem);
+
     return 0;
 }
