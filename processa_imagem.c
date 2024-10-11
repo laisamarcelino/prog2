@@ -24,25 +24,64 @@ imagemPGM *le_p2(FILE *arquivo, imagemPGM *imagem){
     imagem->pixels = aloca_imagem(imagem);
 
     for(int i = 0; i < imagem->altura; i++){
-        for(int j = 0; j < imagem->largura; j++){
+        for(int j = 0; j < imagem->largura; j++)
             fscanf(arquivo, "%d", &imagem->pixels[i][j]);
-            printf("%d ", imagem->pixels[i][j]);
-        }
     }
     
     return imagem;
 }
 
-imagemPGM *le_p5(FILE *arquivo){
-    
-}
+imagemPGM *le_p5(FILE *arquivo, imagemPGM *imagem){
+    unsigned char pixel;
 
-int **aloca_imagem(imagemPGM *imagem){
+    imagem->pixels = aloca_imagem(imagem);
+    fgetc(arquivo);
 
-    imagem->pixels = (int **)malloc(imagem->altura * sizeof(int *));
     for (int i = 0; i < imagem->altura; i++) {
-        imagem->pixels[i] = (int *)malloc(imagem->largura * sizeof(int));
+        for (int j = 0; j < imagem->largura; j++) {
+            fread(&pixel, sizeof(unsigned char), 1, arquivo);  // Ler 1 byte por vez
+            imagem->pixels[i][j] = (int)pixel;  // Armazenar o valor como int
+        }
     }
-    return imagem->pixels;
+
+    return imagem;
 }
 
+imagemPGM *escreve_p5(FILE *arquivo, imagemPGM *imagem){
+
+    imagem->pixels = aloca_imagem(imagem);
+    
+
+    for (int i = 0; i < imagem->altura; i++) {
+        for (int j = 0; j < imagem->largura; j++) {
+            unsigned char pixel;
+            fwrite(&pixel, sizeof(unsigned char), 1, arquivo);
+            imagem->pixels[i][j] = (int)pixel;  
+            printf("%d ", imagem->pixels[i][j]);
+        }
+    }
+
+    return imagem;
+}
+
+int **aloca_imagem(imagemPGM *imagem) {
+    int **pixels = (int **)malloc(imagem->altura * sizeof(int *));
+    if (pixels == NULL) {
+        printf("Erro ao alocar memória para imagem\n");
+        return NULL;
+    }
+
+    for (int i = 0; i < imagem->altura; i++) {
+        pixels[i] = (int *)malloc(imagem->largura * sizeof(int));
+        if (pixels[i] == NULL) {
+            printf("Erro ao alocar memória para a linha %d\n", i);
+            for (int j = 0; j < i; j++) {
+                free(pixels[j]);
+            }
+            free(pixels);
+            return NULL;
+        }
+    }
+
+    return pixels;
+}

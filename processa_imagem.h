@@ -25,6 +25,14 @@ imagemPGM *le_p2(FILE *arquivo, imagemPGM *imagem);
    Armazena a matriz da imagem na struct imagemPGM */
 imagemPGM *le_p5(FILE *arquivo, imagemPGM *imagem);
 
+/* Escreve um arquivo P2 (ASCII) 
+   Armazena a matriz da imagem na struct imagemPGM */
+imagemPGM *escreve_p2(FILE *arquivo, imagemPGM *imagem);
+
+/* Escreve um arquivo P5 (Binario)
+   Armazena a matriz da imagem na struct imagemPGM */
+imagemPGM *escreve_p5(FILE *arquivo, imagemPGM *imagem);
+
 /* Calcula o LBP de todas as imagens de uma base
    Armazena o vetor lbp em um arquivo binario com o mesmo nome da img 
    e extensao .lbp */
