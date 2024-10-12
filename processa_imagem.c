@@ -19,48 +19,62 @@ imagemPGM *le_cabecalho_pgm(FILE *arquivo, imagemPGM *imagem){
     return imagem;
 }
 
-imagemPGM *le_p2(FILE *arquivo, imagemPGM *imagem){
-
-    imagem->pixels = aloca_imagem(imagem);
-
-    for(int i = 0; i < imagem->altura; i++){
-        for(int j = 0; j < imagem->largura; j++)
-            fscanf(arquivo, "%d", &imagem->pixels[i][j]);
-    }
-    
-    return imagem;
-}
-
-imagemPGM *le_p5(FILE *arquivo, imagemPGM *imagem){
+imagemPGM *le_imagem(FILE *arquivo, imagemPGM *imagem){
     unsigned char pixel;
 
     imagem->pixels = aloca_imagem(imagem);
-    fgetc(arquivo);
 
-    for (int i = 0; i < imagem->altura; i++) {
-        for (int j = 0; j < imagem->largura; j++) {
-            fread(&pixel, sizeof(unsigned char), 1, arquivo);  // Ler 1 byte por vez
-            imagem->pixels[i][j] = (int)pixel;  // Armazenar o valor como int
+    if (strcmp(imagem->formato, "P2") == 0) {
+        for(int i = 0; i < imagem->altura; i++){
+            for(int j = 0; j < imagem->largura; j++)
+                fscanf(arquivo, "%d", &imagem->pixels[i][j]);
         }
     }
 
+    else if(strcmp(imagem->formato, "P5") == 0){
+        fgetc(arquivo);
+
+        for (int i = 0; i < imagem->altura; i++) {
+            for (int j = 0; j < imagem->largura; j++) {
+                fread(&pixel, sizeof(unsigned char), 1, arquivo);  // Le 1 byte por vez
+                imagem->pixels[i][j] = (int)pixel;  // Armazena o valor como int
+            }
+        }
+    }
+
+    else {
+        printf("Formato de arquivo não suportado");
+    }
+    
     return imagem;
 }
 
-imagemPGM *escreve_p5(FILE *arquivo, imagemPGM *imagem){
+imagemPGM *escreve_imagem(FILE *arquivo, imagemPGM *imagem){
+    // Escreve o cabeçalho no arquivo
+    fprintf(arquivo, "%s\n%d %d\n%d\n", imagem->formato, imagem->largura, imagem->altura, imagem->max_pix);
 
-    imagem->pixels = aloca_imagem(imagem);
-    
+    if (strcmp(imagem->formato, "P2") == 0) {
+        for (int i = 0; i < imagem->altura; i++) {
+            for (int j = 0; j < imagem->largura; j++) {
+                fprintf(arquivo, "%d ", imagem->pixels[i][j]);
+            }
+        fprintf(arquivo, "\n");
+    }
+    }
 
-    for (int i = 0; i < imagem->altura; i++) {
-        for (int j = 0; j < imagem->largura; j++) {
-            unsigned char pixel;
-            fwrite(&pixel, sizeof(unsigned char), 1, arquivo);
-            imagem->pixels[i][j] = (int)pixel;  
-            printf("%d ", imagem->pixels[i][j]);
+    else if(strcmp(imagem->formato, "P5") == 0){
+        for (int i = 0; i < imagem->altura; i++) {
+            for (int j = 0; j < imagem->largura; j++) {
+                unsigned char pixel = (unsigned char)imagem->pixels[i][j];  // Converte o valor de volta para unsigned char
+                fwrite(&pixel, sizeof(unsigned char), 1, arquivo);  // Escreve 1 byte por vez
+            }
         }
     }
 
+    else {
+        printf("Formato de arquivo não suportado");
+    }
+    
     return imagem;
 }
 

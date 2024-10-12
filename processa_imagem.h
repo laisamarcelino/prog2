@@ -17,21 +17,13 @@ typedef struct imagemPGM {
    Armazena as informações do cabeçalho na struct imagemPGM */
 imagemPGM *le_cabecalho_pgm(FILE *arquivo, imagemPGM *imagem);
 
-/* Le um arquivo P2 (ASCII) 
+/* Le um arquivo P2 (ASCII) ou P5 (Binario)
    Armazena a matriz da imagem na struct imagemPGM */
-imagemPGM *le_p2(FILE *arquivo, imagemPGM *imagem);
+imagemPGM *le_imagem(FILE *arquivo, imagemPGM *imagem);
 
-/* Le um arquivo P5 (Binario)
+/* Escreve um arquivo P2 (ASCII) ou P5 (Binario)
    Armazena a matriz da imagem na struct imagemPGM */
-imagemPGM *le_p5(FILE *arquivo, imagemPGM *imagem);
-
-/* Escreve um arquivo P2 (ASCII) 
-   Armazena a matriz da imagem na struct imagemPGM */
-imagemPGM *escreve_p2(FILE *arquivo, imagemPGM *imagem);
-
-/* Escreve um arquivo P5 (Binario)
-   Armazena a matriz da imagem na struct imagemPGM */
-imagemPGM *escreve_p5(FILE *arquivo, imagemPGM *imagem);
+imagemPGM *escreve_imagem(FILE *arquivo, imagemPGM *imagem);
 
 /* Calcula o LBP de todas as imagens de uma base
    Armazena o vetor lbp em um arquivo binario com o mesmo nome da img 
