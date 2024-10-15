@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 imagemPGM *le_cabecalho_imagem(FILE *arquivo, imagemPGM *imagem){
     char formato[3];
@@ -24,7 +26,7 @@ imagemPGM *le_imagem(FILE *arquivo, imagemPGM *imagem){
     unsigned char pixel;
 
     le_cabecalho_imagem(arquivo, imagem);
-    imagem->pixels = aloca_imagem(imagem);
+    imagem->pixels = aloca_matriz_imagem(imagem);
 
     if (strcmp(imagem->formato, "P2") == 0){
         for (int i = 0; i < imagem->altura; i++){
@@ -38,8 +40,8 @@ imagemPGM *le_imagem(FILE *arquivo, imagemPGM *imagem){
 
         for (int i = 0; i < imagem->altura; i++){
             for (int j = 0; j < imagem->largura; j++){
-                fread(&pixel, sizeof(unsigned char), 1, arquivo); // Le 1 byte por vez
-                imagem->pixels[i][j] = (int)pixel;                // Armazena o valor como int
+                fread(&pixel, sizeof(unsigned char), 1, arquivo);
+                imagem->pixels[i][j] = (int)pixel;                
             }
         }
     }
@@ -67,8 +69,8 @@ imagemPGM *escreve_imagem_lbp(FILE *arquivo, imagemPGM *imagem){
     else if (strcmp(imagem->formato, "P5") == 0){
         for (int i = 0; i < imagem->altura; i++){
             for (int j = 0; j < imagem->largura; j++){
-                pixel = (unsigned char)imagem->pixels[i][j]; // Converte o valor de volta para unsigned char
-                fwrite(&pixel, sizeof(unsigned char), 1, arquivo);  // Escreve 1 byte por vez
+                pixel = (unsigned char)imagem->pixels[i][j]; 
+                fwrite(&pixel, sizeof(unsigned char), 1, arquivo);  
             }
         }
     }
@@ -103,19 +105,35 @@ void calcula_lbp(imagemPGM *imagem, imagemPGM *lbp_imagem){
                 }
             }     
 
-            lbp_imagem->pixels[i][j] = lbp;  // Armazena o valor LBP na nova imagem
+            lbp_imagem->pixels[i][j] = lbp;  // Armazena o valor lbp na nova imagem
         }
     }
 }
 
-// Arrumar negocio do nome do arquivo
-void gera_histograma(imagemPGM *lbp_imagem, int *histograma){
+void gera_histograma(imagemPGM *lbp_imagem, int *histograma, char *nome_pgm){
     FILE *arquivo;
     int lbp_valor;
+    char nome_lbp[100], *extensao;
+    const char *diretorio_lbp = "histogramas";
 
-    arquivo = fopen("histograma_lbp", "wb");
+    /* Cria um diretorio para salvar os histogramas se ele nao existir
+       Da permissoes de leitura, escrita e execucao */
+    if (mkdir(diretorio_lbp, 0777) != 0) { 
+        if (errno != EEXIST) {
+            fprintf(stderr, "Erro ao criar o diretório");
+            return;
+        }
+    }
+
+    // Atualiza a extensao .pgm para .lbp
+    extensao = strrchr(nome_pgm, '.');
+    if (extensao != NULL)
+        *extensao = '\0'; // Remove a extensao .pgm
+    sprintf(nome_lbp, "%s/%s.lbp", diretorio_lbp, nome_pgm);
+
+    arquivo = fopen(nome_lbp, "wb");
     if (arquivo == NULL){
-        fprintf(stderr, "Erro ao abrir o arquivo de entrada\n");
+        fprintf(stderr, "Erro ao abrir o arquivo do histograma\n");
         return;
     }
 
@@ -136,6 +154,28 @@ void gera_histograma(imagemPGM *lbp_imagem, int *histograma){
     fclose(arquivo);
 }
 
+//arrumar esse fopen
+int le_histograma_lbp (int *histograma, char *nome_lbp){
+    FILE *arquivo;
+    int valor, tam = 0, i = 0;
+
+    arquivo = fopen(nome_lbp, "rb");
+    if (arquivo == NULL) {
+        fprintf(stderr, "Erro ao abrir o arquivo\n");
+        return 1;
+    }
+
+    while((fread(&valor, sizeof(int), 1, arquivo)) == 1){
+        histograma[i] = valor;
+        printf("%d ", histograma[i]);
+        tam++;
+        i++;
+    }
+
+    fclose(arquivo);
+    return tam;
+}
+
 
 int calcula_distancia(int *histograma1, int *histograma2, int tam){
     int soma = 0;
@@ -147,7 +187,47 @@ int calcula_distancia(int *histograma1, int *histograma2, int tam){
     return sqrt(soma);
 }
 
-int **aloca_imagem(imagemPGM *imagem){
+void compara_imagens (imagemPGM *ima){
+    int tam;
+
+    
+
+    //se n existir img_base.lbp calcular e salvar lbp no diretorio
+    // se existir comparar distancias, base com todos arquivos do diretorio histogramas
+
+
+}
+
+int imagem_valida(char *nome_pgm) {
+    char *extensao = strrchr(nome_pgm, '.');
+    if (extensao != NULL && strcmp(extensao, ".pgm") == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+void aloca_lbp(imagemPGM *imagem, imagemPGM *lbp_imagem) {
+    lbp_imagem->largura = imagem->largura;
+    lbp_imagem->altura = imagem->altura;
+    lbp_imagem->max_pix = imagem->max_pix;
+    strcpy(lbp_imagem->formato, imagem->formato);
+    lbp_imagem->pixels = aloca_matriz_imagem(lbp_imagem);
+
+    if (lbp_imagem->pixels == NULL) {
+        fprintf(stderr, "Erro ao alocar matriz de pixels para imagem LBP\n");
+        free(imagem); 
+        return;
+    }
+    
+    // Inicializa os valores da matriz de pixels da imagem lbp
+    for (int i = 0; i < lbp_imagem->altura; i++) {
+        for (int j = 0; j < lbp_imagem->largura; j++) {
+            lbp_imagem->pixels[i][j] = 0; 
+        }
+    }
+}
+
+int **aloca_matriz_imagem (imagemPGM *imagem){
     int **pixels;
 
     // Aloca um vetor para as linhas
@@ -174,7 +254,6 @@ int **aloca_imagem(imagemPGM *imagem){
 }
 
 void libera_memoria(imagemPGM *imagem){
-
     for (int i = 0; i < imagem->altura; i++)
         free(imagem->pixels[i]);
     free(imagem->pixels);
