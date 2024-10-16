@@ -3,12 +3,14 @@
 #ifndef _processa_imagem_t_H
 #define _processa_imagem_t_H
 
+#define TAM 256
+
 /* Define a estrutura da imagem PGM */
 typedef struct imagemPGM {
     char formato[3]; /* p2 ou p5 */
     int largura; 
     int altura;
-    int max_pix; /* tamanho da variação de cada pixel na escala de cinza */
+    int max_pix; /*tam da variação de cada pixel na escala de cinza*/
     int **pixels; 
 } imagemPGM;
 
@@ -33,23 +35,30 @@ void calcula_lbp(imagemPGM *imagem, imagemPGM *lbp_imagem);
    dos 256 valores lbp. Armazena o vetor em um arquivo
    binario com o mesmo nome da imagem e extensao .lbp 
    Retorna o nome do aquivo .lbp */
-void gera_histograma(imagemPGM *lbp_imagem, int *histograma, char *nome_pgm);
+void gera_histograma(imagemPGM *lbp_imagem, double *histograma, 
+         char *nome_img_entrada);
 
-/* Le um arquivo binario lbp e retorna o tamanho do histograma */
-int le_histograma_lbp (int *histograma, char *nome_lbp);
+/* Le um arquivo binario lbp 
+   Retorna 0 se o arquivo do histograma nao existe, ou 1, caso contrario*/
+int le_histograma_lbp (double *histograma, char *nome_lbp);
 
 /* Calcula a distancia Euclidiana entre duas imagens 
    considerando o histograma lpb delas */
-int calcula_distancia(int *histograma1, int *histograma2, int tam);
+double calcula_distancia(double *histograma1, double *histograma2, int tam);
+
+/* Le as imagens do diretorio ./base e calcula o lbp para todas as imagens 
+   Retorna 1 em casos de erro, ou 0 caso contrario */
+int manipula_diretorio (imagemPGM *imagem, char *nome_diretorio);
 
 /* Utiliza o histograma das imagens para comparar duas imagens
    a partir do calculo da distancia entre dois vetores 
    - distancia Euclediana */
-void compara_imagens (int *histograma1, int *histograma2);
+void compara_imagens (imagemPGM *imagem, char *nome_img_entrada, 
+         char *nome_diretorio);
 
-/* Retorna 1 se for uma imagem valida, de extensao .pgm
-   ou 0 caso contrario */
-int imagem_valida(char *nome_pgm);
+/* Retorna 1 se for uma imagem de extensao .pgm,
+   2 se for uma imagem .lbp, ou 0 caso contrario */
+int imagem_valida(char *nome_img_entrada);
 
 /* Aloca memória para a estrutura da imagem LBP */
 void aloca_lbp (imagemPGM *imagem, imagemPGM *lbp_imagem);

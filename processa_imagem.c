@@ -4,6 +4,8 @@
 #include <string.h>
 #include <math.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
 #include <errno.h>
 
 imagemPGM *le_cabecalho_imagem(FILE *arquivo, imagemPGM *imagem){
@@ -82,7 +84,7 @@ imagemPGM *escreve_imagem_lbp(FILE *arquivo, imagemPGM *imagem){
 }
 
 void calcula_lbp(imagemPGM *imagem, imagemPGM *lbp_imagem){
-    int pc, lbp;
+    unsigned char pc, lbp;
 
     // Percorre os pixels internos da imagem, ignorando as bordas
     for (int i = 1; i < imagem->altura - 1; i++) {
@@ -110,14 +112,12 @@ void calcula_lbp(imagemPGM *imagem, imagemPGM *lbp_imagem){
     }
 }
 
-void gera_histograma(imagemPGM *lbp_imagem, int *histograma, char *nome_pgm){
+void gera_histograma(imagemPGM *lbp_imagem, double *histograma, char *nome_img_entrada){
     FILE *arquivo;
-    int lbp_valor;
+    unsigned char lbp_valor;
     char nome_lbp[100], *extensao;
     const char *diretorio_lbp = "histogramas";
 
-    /* Cria um diretorio para salvar os histogramas se ele nao existir
-       Da permissoes de leitura, escrita e execucao */
     if (mkdir(diretorio_lbp, 0777) != 0) { 
         if (errno != EEXIST) {
             fprintf(stderr, "Erro ao criar o diretório");
@@ -125,11 +125,10 @@ void gera_histograma(imagemPGM *lbp_imagem, int *histograma, char *nome_pgm){
         }
     }
 
-    // Atualiza a extensao .pgm para .lbp
-    extensao = strrchr(nome_pgm, '.');
+    extensao = strrchr(nome_img_entrada, '.');
     if (extensao != NULL)
-        *extensao = '\0'; // Remove a extensao .pgm
-    sprintf(nome_lbp, "%s/%s.lbp", diretorio_lbp, nome_pgm);
+        *extensao = '\0'; 
+    sprintf(nome_lbp, "%s/%s.lbp", diretorio_lbp, nome_img_entrada);
 
     arquivo = fopen(nome_lbp, "wb");
     if (arquivo == NULL){
@@ -137,12 +136,10 @@ void gera_histograma(imagemPGM *lbp_imagem, int *histograma, char *nome_pgm){
         return;
     }
 
-    // Inicializa o histograma
-    for (int i = 0; i < 256; i++) {
+    for (int i = 0; i < TAM; i++) {
         histograma[i] = 0;
     }
 
-    // Percorre a imagem lbp e conta as frequências de cada valor
     for (int i = 0; i < lbp_imagem->altura; i++) {
         for (int j = 0; j < lbp_imagem->largura; j++) {
             lbp_valor = lbp_imagem->pixels[i][j];
@@ -150,59 +147,162 @@ void gera_histograma(imagemPGM *lbp_imagem, int *histograma, char *nome_pgm){
         }
     }
 
-    fwrite(histograma, sizeof(int), 256, arquivo);
+    for (int i = 0; i < TAM; i++) {
+        histograma[i] = (double)histograma[i] / (double)(lbp_imagem->altura * lbp_imagem->largura);
+    }
+
+    fwrite(histograma, sizeof(double), TAM, arquivo);
     fclose(arquivo);
 }
 
-//arrumar esse fopen
-int le_histograma_lbp (int *histograma, char *nome_lbp){
+int le_histograma_lbp (double *histograma, char *nome_lbp){
     FILE *arquivo;
-    int valor, tam = 0, i = 0;
 
     arquivo = fopen(nome_lbp, "rb");
-    if (arquivo == NULL) {
-        fprintf(stderr, "Erro ao abrir o arquivo\n");
-        return 1;
-    }
+    if (arquivo == NULL)
+        return 0;
 
-    while((fread(&valor, sizeof(int), 1, arquivo)) == 1){
-        histograma[i] = valor;
-        printf("%d ", histograma[i]);
-        tam++;
-        i++;
-    }
-
+    fread(histograma, sizeof(double), TAM, arquivo);
     fclose(arquivo);
-    return tam;
+    
+    return TAM;
 }
 
+double calcula_distancia(double *histograma1, double *histograma2, int tam){
+    double soma = 0.0, diferenca;
 
-int calcula_distancia(int *histograma1, int *histograma2, int tam){
-    int soma = 0;
-
-    for (int i = 0; i < tam; i ++){
-        soma += pow(histograma1[i] - histograma2[i], 2);
+    for (int i = 0; i < tam; i++){
+        diferenca = histograma1[i] - histograma2[i];
+        soma += diferenca * diferenca;
     }
 
     return sqrt(soma);
 }
 
-void compara_imagens (imagemPGM *ima){
-    int tam;
 
-    
+int manipula_diretorio (imagemPGM *imagem, char *nome_diretorio){
+    DIR *diretorio;
+    struct dirent *entrada;
+    char caminho_imagem[300];
+    FILE *arq_diretorio;
+    imagemPGM *imagem_diretorio;
+    double *histograma;
 
-    //se n existir img_base.lbp calcular e salvar lbp no diretorio
-    // se existir comparar distancias, base com todos arquivos do diretorio histogramas
-
-
-}
-
-int imagem_valida(char *nome_pgm) {
-    char *extensao = strrchr(nome_pgm, '.');
-    if (extensao != NULL && strcmp(extensao, ".pgm") == 0) {
+    // Abre o diretorio ./base
+    diretorio = opendir(nome_diretorio);
+    if (diretorio == NULL){
+        fprintf(stderr, "Erro ao abrir diretorio ./base");
         return 1;
     }
+
+    while ((entrada = readdir(diretorio)) != NULL){
+        if (imagem_valida(entrada->d_name)){
+
+            sprintf(caminho_imagem, "%s/%s", nome_diretorio, entrada->d_name);
+
+            // Abre o arquivo no diretorio
+            arq_diretorio = fopen(caminho_imagem, "r");
+            if (arq_diretorio == NULL) {
+                fprintf(stderr, "Erro ao abrir o arquivo de entrada\n");
+                return 1;
+            }
+
+            // Aloca memória para a estrutura imagem de entrada
+            imagem_diretorio = (imagemPGM *)malloc(sizeof(imagemPGM));
+            if (imagem_diretorio == NULL) {
+                fprintf(stderr, "Erro ao alocar memória para imagemPGM\n");
+                fclose(arq_diretorio);
+                return 1;
+            }
+
+            // Lê o cabeçalho e os dados da imagem
+            le_imagem(arq_diretorio, imagem_diretorio);
+            fclose(arq_diretorio);
+            aloca_lbp(imagem, imagem_diretorio);
+            calcula_lbp(imagem, imagem_diretorio);
+
+            histograma = (double *)malloc(TAM * sizeof(double));
+            if (histograma == NULL) {
+                fprintf(stderr, "Erro ao alocar memória para o histograma\n");
+                free(imagem);
+                free(imagem_diretorio);
+                return 1;
+            }
+
+            gera_histograma(imagem_diretorio, histograma, entrada->d_name);
+
+            libera_memoria(imagem_diretorio);
+            free(histograma);
+        }
+    }
+
+    return 0;
+}
+
+void compara_imagens (imagemPGM *imagem, char *nome_img_entrada, 
+            char *nome_diretorio){
+    char *extensao, nome_lbp[100], caminho_lbp[300], nome_similar[100];
+    double *histograma_base, *histograma_similar, tam;
+    double distancia, menor_distancia = INFINITY;
+    DIR *diretorio;
+    struct dirent *entrada;
+
+    extensao = strrchr(nome_img_entrada, '.');
+    if (extensao != NULL)
+        *extensao = '\0'; 
+    sprintf(nome_lbp, "./histogramas/%s.lbp", nome_img_entrada);
+
+    // Inicializa os ponteiros de histograma
+    histograma_base = (double *)malloc(TAM * sizeof(double));    if (histograma_base == NULL) {
+        fprintf(stderr, "Erro ao alocar memória para o histograma base\n");
+        return;
+    }
+    histograma_similar = (double *)malloc(TAM * sizeof(double));    if (histograma_similar == NULL) {
+        fprintf(stderr, "Erro ao alocar memória para o histograma similar\n");
+        return;
+    }
+
+    // Caso o histograma não exista, gera o histograma e salva no diretorio
+    if (!le_histograma_lbp(histograma_base, nome_lbp)) {
+        manipula_diretorio(imagem, nome_diretorio);
+    }
+
+    diretorio = opendir("histogramas");
+    if (diretorio == NULL) {
+        fprintf(stderr, "Erro ao abrir o diretório de histogramas\n");
+        return;
+    }
+
+    // Percorre os histogramas no diretório
+    while ((entrada = readdir(diretorio)) != NULL) {
+        if (imagem_valida(entrada->d_name) == 2) {
+
+            sprintf(caminho_lbp, "histogramas/%s", entrada->d_name);
+
+            tam = le_histograma_lbp(histograma_similar, caminho_lbp);
+
+            distancia = calcula_distancia(histograma_base, histograma_similar, tam);
+
+            if (distancia < menor_distancia) {
+                menor_distancia = distancia;
+                strcpy(nome_similar, entrada->d_name);
+            }
+        }
+    }
+
+    closedir(diretorio);
+
+    printf("Imagem mais similar: %s %f\n", nome_similar, menor_distancia);
+}
+
+int imagem_valida(char *nome_img_entrada) {
+    char *extensao = strrchr(nome_img_entrada, '.');
+
+    if (extensao != NULL && strcmp(extensao, ".pgm") == 0)
+        return 1;
+    else if (extensao != NULL && strcmp(extensao, ".lbp") == 0)
+        return 2;
+
     return 0;
 }
 

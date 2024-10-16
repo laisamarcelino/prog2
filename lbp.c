@@ -1,18 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <dirent.h>
 #include "processa_imagem.h"
 
 int main(int argc, char *argv[]) {
-    FILE *arq_entrada, *arq_diretorio, *arq_saida;
-    DIR *diretorio;
-    char caminho_imagem[300], caminho_imagem2[300];
-    //double distancia;
-    struct dirent *entrada; // Struct definida pela biblioteca <dirent.h>
-    imagemPGM *imagem_entrada, *imagem_diretorio, *imagem_saida;
-    int *histograma, opcao_escrita = 0;
+    FILE *arq_entrada, *arq_saida;
+    char caminho_imagem[300];
+    imagemPGM *imagem_entrada, *imagem_saida;
+    int opcao_escrita = 0;
 
     // Verifica se o número correto de argumentos foi passado
     if (argc != 5) {
@@ -29,7 +24,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Abre o arquivo de entrada
-    arq_entrada = fopen(caminho_imagem, "rb");
+    arq_entrada = fopen(caminho_imagem, "r");
     if (arq_entrada == NULL) {
         fprintf(stderr, "Erro ao abrir o arquivo de entrada\n");
         return 1;
@@ -59,7 +54,7 @@ int main(int argc, char *argv[]) {
         calcula_lbp(imagem_entrada, imagem_saida);
 
         // Abre o arquivo de saída
-        arq_saida = fopen(argv[4], "wb");
+        arq_saida = fopen(argv[4], "w");
         if (arq_saida == NULL) {
             fprintf(stderr, "Erro ao abrir o arquivo de saída\n");
             fclose(arq_entrada);
@@ -82,65 +77,10 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    // Abre o diretorio ./base
-    diretorio = opendir(argv[2]);
-    if (diretorio == NULL){
-        fprintf(stderr, "Erro ao abrir diretorio ./base");
-        return 1;
-    }
+    manipula_diretorio(imagem_entrada, argv[2]);
 
-    // Le as imagens do diretorio e calcula o lbp para todas as imagens
-    while ((entrada = readdir(diretorio)) != NULL){
-        if (imagem_valida(entrada->d_name)){
-
-            sprintf(caminho_imagem2, "%s/%s", argv[2], entrada->d_name);
-
-            // Abre o arquivo no diretorio
-            arq_diretorio = fopen(caminho_imagem2, "rb");
-            if (arq_diretorio == NULL) {
-                fprintf(stderr, "Erro ao abrir o arquivo de entrada\n");
-                return 1;
-            }
-
-            // Aloca memória para a estrutura imagem de entrada
-            imagem_diretorio = (imagemPGM *)malloc(sizeof(imagemPGM));
-            if (imagem_diretorio == NULL) {
-                fprintf(stderr, "Erro ao alocar memória para imagemPGM\n");
-                fclose(arq_diretorio);
-                return 1;
-            }
-
-            // Lê o cabeçalho e os dados da imagem
-            le_imagem(arq_diretorio, imagem_diretorio);
-            aloca_lbp(imagem_entrada, imagem_diretorio);
-            calcula_lbp(imagem_entrada, imagem_diretorio);
-
-            histograma = (int *)malloc(256 * sizeof(int));
-            if (histograma == NULL) {
-                fprintf(stderr, "Erro ao alocar memória para o histograma\n");
-                fclose(arq_entrada);
-                free(imagem_entrada);
-                free(imagem_diretorio);
-                return 1;
-            }
-
-            gera_histograma(imagem_diretorio, histograma, entrada->d_name);
-            
-            libera_memoria(imagem_diretorio);
-            free(histograma);
-            fclose(arq_diretorio);
-        }
-    }
-    //compara imagens
-    //printf("Imagem mais similar: %s %f", img_similar, distancia);
-    
-    // Abre o diretorio ./histogramas
-    /*diretorio = opendir("histogramas");
-    if (diretorio == NULL){
-        fprintf(stderr, "Erro ao abrir diretorio ./histogramas");
-        return 1;
-    }*/
-    //compara_imagens(imagem_entrada, diretorio);
+    // Compara a imagem de entrada com as demais 
+    compara_imagens(imagem_entrada, argv[4], argv[2]);
 
     // Fecha os arquivos e libera a memória alocada
     fclose(arq_entrada);
