@@ -76,17 +76,16 @@ int main(int argc, char *argv[]) {
         free(imagem_saida);
         return 0;
     }
-
+    
     manipula_diretorio(imagem_entrada, argv[2]);
 
     // Compara a imagem de entrada com as demais 
-    compara_imagens(imagem_entrada, argv[4], argv[2]);
+    compara_imagens(arq_entrada, imagem_entrada, argv[4], argv[2]);
 
     // Fecha os arquivos e libera a memória alocada
     fclose(arq_entrada);
     libera_memoria(imagem_entrada);
     free(imagem_entrada);
-   
 
     return 0;
 }

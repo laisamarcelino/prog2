@@ -40,7 +40,7 @@ void gera_histograma(imagemPGM *lbp_imagem, double *histograma,
 
 /* Le um arquivo binario lbp 
    Retorna 0 se o arquivo do histograma nao existe, ou 1, caso contrario*/
-int le_histograma_lbp (double *histograma, char *nome_lbp);
+int le_histograma_lbp (FILE *arquivo, double *histograma, char *nome_lbp);
 
 /* Calcula a distancia Euclidiana entre duas imagens 
    considerando o histograma lpb delas */
@@ -53,7 +53,7 @@ int manipula_diretorio (imagemPGM *imagem, char *nome_diretorio);
 /* Utiliza o histograma das imagens para comparar duas imagens
    a partir do calculo da distancia entre dois vetores 
    - distancia Euclediana */
-void compara_imagens (imagemPGM *imagem, char *nome_img_entrada, 
+void compara_imagens (FILE *arquivo, imagemPGM *imagem, char *nome_img_entrada, 
          char *nome_diretorio);
 
 /* Retorna 1 se for uma imagem de extensao .pgm,

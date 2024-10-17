@@ -48,9 +48,12 @@ imagemPGM *le_imagem(FILE *arquivo, imagemPGM *imagem){
         }
     }
 
-    else
-        printf("Formato de arquivo não suportado");
-
+    else {
+        fprintf(stderr, "Formato de arquivo não suportado");
+        libera_memoria(imagem);
+        return NULL;
+    }
+    
     return imagem;
 }
 
@@ -147,25 +150,26 @@ void gera_histograma(imagemPGM *lbp_imagem, double *histograma, char *nome_img_e
         }
     }
 
+    // Normaliza o histograma
+    int total_pixels = lbp_imagem->altura * lbp_imagem->largura;
     for (int i = 0; i < TAM; i++) {
-        histograma[i] = (double)histograma[i] / (double)(lbp_imagem->altura * lbp_imagem->largura);
+        histograma[i] /= total_pixels;
     }
 
     fwrite(histograma, sizeof(double), TAM, arquivo);
     fclose(arquivo);
 }
 
-int le_histograma_lbp (double *histograma, char *nome_lbp){
-    FILE *arquivo;
+int le_histograma_lbp (FILE *arquivo, double *histograma, char *nome_lbp){
 
     arquivo = fopen(nome_lbp, "rb");
     if (arquivo == NULL)
-        return 0;
+        return 1;
 
     fread(histograma, sizeof(double), TAM, arquivo);
     fclose(arquivo);
     
-    return TAM;
+    return 0;
 }
 
 double calcula_distancia(double *histograma1, double *histograma2, int tam){
@@ -239,13 +243,14 @@ int manipula_diretorio (imagemPGM *imagem, char *nome_diretorio){
     return 0;
 }
 
-void compara_imagens (imagemPGM *imagem, char *nome_img_entrada, 
+void compara_imagens (FILE *arquivo, imagemPGM *imagem, char *nome_img_entrada, 
             char *nome_diretorio){
     char *extensao, nome_lbp[100], caminho_lbp[300], nome_similar[100];
     double *histograma_base, *histograma_similar, tam;
     double distancia, menor_distancia = INFINITY;
     DIR *diretorio;
     struct dirent *entrada;
+    FILE *arquivo_diretorio;
 
     extensao = strrchr(nome_img_entrada, '.');
     if (extensao != NULL)
@@ -253,17 +258,19 @@ void compara_imagens (imagemPGM *imagem, char *nome_img_entrada,
     sprintf(nome_lbp, "./histogramas/%s.lbp", nome_img_entrada);
 
     // Inicializa os ponteiros de histograma
-    histograma_base = (double *)malloc(TAM * sizeof(double));    if (histograma_base == NULL) {
+    histograma_base = (double *)malloc(TAM * sizeof(double));   
+    if (histograma_base == NULL) {
         fprintf(stderr, "Erro ao alocar memória para o histograma base\n");
         return;
     }
-    histograma_similar = (double *)malloc(TAM * sizeof(double));    if (histograma_similar == NULL) {
+    histograma_similar = (double *)malloc(TAM * sizeof(double));   
+    if (histograma_similar == NULL) {
         fprintf(stderr, "Erro ao alocar memória para o histograma similar\n");
         return;
     }
 
     // Caso o histograma não exista, gera o histograma e salva no diretorio
-    if (!le_histograma_lbp(histograma_base, nome_lbp)) {
+    if (!le_histograma_lbp(arquivo, histograma_base, nome_lbp)) {
         manipula_diretorio(imagem, nome_diretorio);
     }
 
@@ -279,18 +286,27 @@ void compara_imagens (imagemPGM *imagem, char *nome_img_entrada,
 
             sprintf(caminho_lbp, "histogramas/%s", entrada->d_name);
 
-            tam = le_histograma_lbp(histograma_similar, caminho_lbp);
+            arquivo_diretorio = fopen(caminho_lbp, "rb");
 
+            tam = le_histograma_lbp(arquivo_diretorio, histograma_similar, entrada->d_name);
             distancia = calcula_distancia(histograma_base, histograma_similar, tam);
 
-            if (distancia < menor_distancia) {
+            strcpy(nome_similar, entrada->d_name);    
+            printf(": %s %f\n", nome_similar, menor_distancia);
+
+            if (distancia < menor_distancia && distancia != 0.0) {
                 menor_distancia = distancia;
                 strcpy(nome_similar, entrada->d_name);
             }
+
+            fclose(arquivo_diretorio);
         }
     }
 
     closedir(diretorio);
+    free(histograma_base);
+    free(histograma_similar);
+
 
     printf("Imagem mais similar: %s %f\n", nome_similar, menor_distancia);
 }

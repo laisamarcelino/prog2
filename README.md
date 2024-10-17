@@ -14,7 +14,7 @@ O projeto está estruturado nos seguintes arquivos:
 
 Arquivo principal do programa, onde a execução começa. Ele recebe os parâmetros via linha de comando e coordena a leitura, escrita processamento e comparação das imagens.
 
-**Função main:**
+* **Função main:**
     Recebe argumentos que indicam o diretório de imagens e o nome da imagem de entrada.
     Abre a imagem especificada, lê os dados e calcula o LBP, gera o histograma, e dependendo da solicitação, gera a imagem LBP ou compara a imagem com outras imagens no diretório.
 
@@ -43,10 +43,10 @@ Contém as funções responsáveis por processar imagens no formato PGM e calcul
 
 ## Compilação e Execução
 
-Para compilar o programa use o comando `make`
+Para compilar o programa use o comando: `make`
 
-Para comparar uma imagem de teste com as imagens da base de referência use:
+Para comparar uma imagem de teste com as imagens da base de referência use: 
 ` ./LBP -d ./base -i img1.pgm `
 
-Para gerar um imagem LBP use:
+Para gerar um imagem LBP use: 
 ` ./LBP -i img1.pgm -o img_out.pgm`
