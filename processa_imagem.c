@@ -2,376 +2,344 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <dirent.h>
-#include <errno.h>
+#include <sys/stat.h>
+#include <math.h>
+#include <unistd.h>
 
-imagemPGM *le_cabecalho_imagem(FILE *arquivo, imagemPGM *imagem){
-    char formato[3];
-    int largura, altura, max_pix;
+int le_pgm(char caminho_img[], char *formato, int *largura, int *altura, int *max_pix, unsigned char **pixels){
+    FILE *arquivo;
+    int c, pixel;
+    char formato_img[3];
 
-    fscanf(arquivo, "%s", formato);
-    fscanf(arquivo, "%d %d", &largura, &altura);
-    fscanf(arquivo, "%d", &max_pix);
+    arquivo = fopen(caminho_img, "r");
+    if (arquivo == NULL){
+        return 1;
+    }
 
-    strcpy(imagem->formato, formato);
-    imagem->largura = largura;
-    imagem->altura = altura;
-    imagem->max_pix = max_pix;
+    // Le formato da imagem
+    fscanf(arquivo, "%s", formato_img);
+    strcpy(formato, formato_img);
 
-    return imagem;
-}
+    // Ignora comentários
+    while ((c = fgetc(arquivo)) == '#') {
+        while (fgetc(arquivo) != '\n');
+    }
+    ungetc(c, arquivo);
 
-imagemPGM *le_imagem(FILE *arquivo, imagemPGM *imagem){
-    unsigned char pixel;
+    fscanf(arquivo, "%d %d", largura, altura);
+    fscanf(arquivo, "%d", max_pix);
 
-    le_cabecalho_imagem(arquivo, imagem);
-    imagem->pixels = aloca_matriz_imagem(imagem);
+    if (strcmp(formato_img, "P2") == 0){
+        *pixels = (unsigned char *)malloc((*largura) * (*altura) * sizeof(unsigned char)); 
+        if (*pixels == NULL) {
+            //printf("Erro ao alocar memória para pixels.\n");
+            fclose(arquivo);
+            return 1;
+        }
 
-    if (strcmp(imagem->formato, "P2") == 0){
-        for (int i = 0; i < imagem->altura; i++){
-            for (int j = 0; j < imagem->largura; j++)
-                fscanf(arquivo, "%d", &imagem->pixels[i][j]);
+        for (int i = 0; i < (*largura) * (*altura); i++){
+            fscanf(arquivo, "%d", &pixel);
+            (*pixels)[i] = (unsigned char)pixel;
         }
     }
 
-    else if (strcmp(imagem->formato, "P5") == 0){
+    else if (strcmp(formato_img, "P5") == 0){
         fgetc(arquivo);
-
-        for (int i = 0; i < imagem->altura; i++){
-            for (int j = 0; j < imagem->largura; j++){
-                fread(&pixel, sizeof(unsigned char), 1, arquivo);
-                imagem->pixels[i][j] = (int)pixel;                
-            }
+        *pixels = (unsigned char *)malloc((*largura) * (*altura) * sizeof(unsigned char)); 
+        if (*pixels == NULL) {
+            //printf("Erro ao alocar memória para pixels.\n");
+            fclose(arquivo);
+            return 1;
         }
+
+        fread(*pixels, sizeof(unsigned char), (*largura) * (*altura), arquivo);
     }
 
     else {
-        fprintf(stderr, "Formato de arquivo não suportado");
-        libera_memoria(imagem);
-        return NULL;
-    }
-    
-    return imagem;
-}
-
-imagemPGM *escreve_imagem_lbp(FILE *arquivo, imagemPGM *imagem){
-    unsigned char pixel;
-    
-    // Escreve o cabeçalho no arquivo
-    fprintf(arquivo, "%s\n%d %d\n%d\n", imagem->formato, imagem->largura, imagem->altura, imagem->max_pix);
-
-    if (strcmp(imagem->formato, "P2") == 0){
-        for (int i = 0; i < imagem->altura; i++){
-            for (int j = 0; j < imagem->largura; j++)
-                fprintf(arquivo, "%d ", imagem->pixels[i][j]);
-            fprintf(arquivo, "\n");
-        }
-    }
-
-    else if (strcmp(imagem->formato, "P5") == 0){
-        for (int i = 0; i < imagem->altura; i++){
-            for (int j = 0; j < imagem->largura; j++){
-                pixel = (unsigned char)imagem->pixels[i][j]; 
-                fwrite(&pixel, sizeof(unsigned char), 1, arquivo);  
-            }
-        }
-    }
-
-    else
-        printf("Formato de arquivo não suportado");
-
-    return imagem;
-}
-
-void calcula_lbp(imagemPGM *imagem, imagemPGM *lbp_imagem){
-    unsigned char pc, lbp;
-
-    // Percorre os pixels internos da imagem, ignorando as bordas
-    for (int i = 1; i < imagem->altura - 1; i++) {
-        for (int j = 1; j < imagem->largura - 1; j++) {
-            pc = imagem->pixels[i][j];  // Pixel central
-            lbp = 0;
-
-            // Define os 8 vizinhos do pixel central
-            int vizinho[8] = {
-                imagem->pixels[i-1][j-1], imagem->pixels[i-1][j], 
-                imagem->pixels[i-1][j+1], imagem->pixels[i][j+1], 
-                imagem->pixels[i+1][j+1], imagem->pixels[i+1][j], 
-                imagem->pixels[i+1][j-1], imagem->pixels[i][j-1]
-            };
-
-            // Calcula o padrão binário
-            for (int x = 0; x < 8; x++) {
-                if (vizinho[x] >= pc) {
-                    lbp |= (1 << x);  // Atribui 1 se o vizinho é maior ou igual ao pixel central
-                }
-            }     
-
-            lbp_imagem->pixels[i][j] = lbp;  // Armazena o valor lbp na nova imagem
-        }
-    }
-}
-
-void gera_histograma(imagemPGM *lbp_imagem, double *histograma, char *nome_img_entrada){
-    FILE *arquivo;
-    unsigned char lbp_valor;
-    char nome_lbp[100], *extensao;
-    const char *diretorio_lbp = "histogramas";
-
-    if (mkdir(diretorio_lbp, 0777) != 0) { 
-        if (errno != EEXIST) {
-            fprintf(stderr, "Erro ao criar o diretório");
-            return;
-        }
-    }
-
-    extensao = strrchr(nome_img_entrada, '.');
-    if (extensao != NULL)
-        *extensao = '\0'; 
-    sprintf(nome_lbp, "%s/%s.lbp", diretorio_lbp, nome_img_entrada);
-
-    arquivo = fopen(nome_lbp, "wb");
-    if (arquivo == NULL){
-        fprintf(stderr, "Erro ao abrir o arquivo do histograma\n");
-        return;
-    }
-
-    for (int i = 0; i < TAM; i++) {
-        histograma[i] = 0;
-    }
-
-    for (int i = 0; i < lbp_imagem->altura; i++) {
-        for (int j = 0; j < lbp_imagem->largura; j++) {
-            lbp_valor = lbp_imagem->pixels[i][j];
-            histograma[lbp_valor]++;
-        }
-    }
-
-    // Normaliza o histograma
-    int total_pixels = lbp_imagem->altura * lbp_imagem->largura;
-    for (int i = 0; i < TAM; i++) {
-        histograma[i] /= total_pixels;
-    }
-
-    fwrite(histograma, sizeof(double), TAM, arquivo);
-    fclose(arquivo);
-}
-
-int le_histograma_lbp (FILE *arquivo, double *histograma, char *nome_lbp){
-
-    arquivo = fopen(nome_lbp, "rb");
-    if (arquivo == NULL)
+        //printf("Formato de arquivo não suportado: %s\n", formato);
+        fclose(arquivo);
         return 1;
+    }
 
-    fread(histograma, sizeof(double), TAM, arquivo);
     fclose(arquivo);
-    
     return 0;
 }
 
-double calcula_distancia(double *histograma1, double *histograma2, int tam){
+void calcula_lbp(imagemPGM *img_entrada, unsigned char **img_lbp){
+    int largura, altura;
+    unsigned char pixel_c, lbp;
+
+    largura = img_entrada->largura;  
+    altura = img_entrada->altura; 
+
+    *img_lbp = (unsigned char *)calloc(largura * altura, sizeof(unsigned char)); 
+    if (*img_lbp == NULL) {
+            //printf("Erro ao alocar memória para pixels da imagem LBP.\n");
+            return;
+        }
+
+    // Loop sobre cada pixel (exceto as bordas)
+    for (int y = 1; y < altura - 1; y++) {
+        for (int x = 1; x < largura - 1; x++) {
+            pixel_c = img_entrada->pixels[y * largura + x];  // Pixel central
+            lbp = 0; 
+
+            // Calcula o LBP considerando os 8 vizinhos do pixel central
+            lbp |= (img_entrada->pixels[(y-1) * largura + (x-1)] >= pixel_c) << 7; // Vizinhos: Cima-Esquerda
+            lbp |= (img_entrada->pixels[(y-1) * largura + x] >= pixel_c) << 6; // Vizinhos: Cima
+            lbp |= (img_entrada->pixels[(y-1) * largura + (x+1)] >= pixel_c) << 5; // Vizinhos: Cima-Direita
+            lbp |= (img_entrada->pixels[y * largura + (x+1)] >= pixel_c) << 4; // Vizinhos: Direita
+            lbp |= (img_entrada->pixels[(y+1) * largura + (x+1)] >= pixel_c) << 3; // Vizinhos: Baixo-Direita
+            lbp |= (img_entrada->pixels[(y+1) * largura + x] >= pixel_c) << 2; // Vizinhos: Baixo
+            lbp |= (img_entrada->pixels[(y+1) * largura + (x-1)] >= pixel_c) << 1; // Vizinhos: Baixo-Esquerda
+            lbp |= (img_entrada->pixels[y * largura + (x-1)] >= pixel_c) << 0; // Vizinhos: Esquerda
+
+            (*img_lbp)[y * largura + x] = lbp;  // Armazena o valor LBP calculado
+        }
+    }
+}
+
+void escreve_lbp(const char *caminho_lbp, unsigned char *img_lbp, int tam){
+    FILE *arquivo;
+
+    arquivo = fopen(caminho_lbp, "wb");
+    if (arquivo == NULL){
+        //printf("Erro ao criar arquivo LBP: %s\n", caminho_lbp);
+        return;
+    }
+    fwrite(img_lbp, sizeof(unsigned char), tam, arquivo);
+    fclose(arquivo);
+}
+
+void le_lbp(const char *caminho_lbp, unsigned char **img_lbp, int tam_vet){
+    FILE *arquivo;
+
+    arquivo = fopen(caminho_lbp, "rb");
+    if (arquivo == NULL){
+        //printf("Erro ao abrir o arquivo LBP: %s\n", caminho_lbp);
+        return;
+    }
+    
+    // Aloca memória para os dados LBP
+    *img_lbp = (unsigned char *)malloc(tam_vet * sizeof(unsigned char));
+    fread(*img_lbp, sizeof(unsigned char), tam_vet, arquivo);
+    fclose(arquivo); 
+}
+
+double calcula_dist(float *hist1, float *hist2, int tam_vet) {
     double soma = 0.0, diferenca;
 
-    for (int i = 0; i < tam; i++){
-        diferenca = histograma1[i] - histograma2[i];
+    if (tam_vet == 0) {
+        fprintf(stderr, "O tamanho do histograma é zero\n");
+        return 1;
+    }
+
+    for (int i = 0; i < tam_vet; i++) {
+        diferenca = hist1[i] - hist2[i];
         soma += diferenca * diferenca;
     }
 
     return sqrt(soma);
 }
 
-
-int manipula_diretorio (imagemPGM *imagem, char *nome_diretorio){
+void manipula_dir(const char *nome_dir){
     DIR *diretorio;
     struct dirent *entrada;
-    char caminho_imagem[300];
-    FILE *arq_diretorio;
-    imagemPGM *imagem_diretorio;
-    double *histograma;
+    char caminho_img[2 * MAX_NOME], caminho_lbp[2 * MAX_NOME];
+    char nome_lbp[MAX_NOME], *ext, formato;
+    unsigned char *img_lbp = NULL;
+    int max_pix;
 
-    // Abre o diretorio ./base
-    diretorio = opendir(nome_diretorio);
-    if (diretorio == NULL){
-        fprintf(stderr, "Erro ao abrir diretorio ./base");
-        return 1;
-    }
-
-    while ((entrada = readdir(diretorio)) != NULL){
-        if (imagem_valida(entrada->d_name)){
-
-            sprintf(caminho_imagem, "%s/%s", nome_diretorio, entrada->d_name);
-
-            // Abre o arquivo no diretorio
-            arq_diretorio = fopen(caminho_imagem, "r");
-            if (arq_diretorio == NULL) {
-                fprintf(stderr, "Erro ao abrir o arquivo de entrada\n");
-                return 1;
-            }
-
-            // Aloca memória para a estrutura imagem de entrada
-            imagem_diretorio = (imagemPGM *)malloc(sizeof(imagemPGM));
-            if (imagem_diretorio == NULL) {
-                fprintf(stderr, "Erro ao alocar memória para imagemPGM\n");
-                fclose(arq_diretorio);
-                return 1;
-            }
-
-            // Lê o cabeçalho e os dados da imagem
-            le_imagem(arq_diretorio, imagem_diretorio);
-            fclose(arq_diretorio);
-            aloca_lbp(imagem, imagem_diretorio);
-            calcula_lbp(imagem, imagem_diretorio);
-
-            histograma = (double *)malloc(TAM * sizeof(double));
-            if (histograma == NULL) {
-                fprintf(stderr, "Erro ao alocar memória para o histograma\n");
-                free(imagem);
-                free(imagem_diretorio);
-                return 1;
-            }
-
-            gera_histograma(imagem_diretorio, histograma, entrada->d_name);
-
-            libera_memoria(imagem_diretorio);
-            free(histograma);
-        }
-    }
-
-    return 0;
-}
-
-void compara_imagens (FILE *arquivo, imagemPGM *imagem, char *nome_img_entrada, 
-            char *nome_diretorio){
-    char *extensao, nome_lbp[100], caminho_lbp[300], nome_similar[100];
-    double *histograma_base, *histograma_similar, tam;
-    double distancia, menor_distancia = INFINITY;
-    DIR *diretorio;
-    struct dirent *entrada;
-    FILE *arquivo_diretorio;
-
-    extensao = strrchr(nome_img_entrada, '.');
-    if (extensao != NULL)
-        *extensao = '\0'; 
-    sprintf(nome_lbp, "./histogramas/%s.lbp", nome_img_entrada);
-
-    // Inicializa os ponteiros de histograma
-    histograma_base = (double *)malloc(TAM * sizeof(double));   
-    if (histograma_base == NULL) {
-        fprintf(stderr, "Erro ao alocar memória para o histograma base\n");
-        return;
-    }
-    histograma_similar = (double *)malloc(TAM * sizeof(double));   
-    if (histograma_similar == NULL) {
-        fprintf(stderr, "Erro ao alocar memória para o histograma similar\n");
-        return;
-    }
-
-    // Caso o histograma não exista, gera o histograma e salva no diretorio
-    if (!le_histograma_lbp(arquivo, histograma_base, nome_lbp)) {
-        manipula_diretorio(imagem, nome_diretorio);
-    }
-
-    diretorio = opendir("histogramas");
+    // Abre o diretório especificado
+    diretorio = opendir(nome_dir);
     if (diretorio == NULL) {
-        fprintf(stderr, "Erro ao abrir o diretório de histogramas\n");
+        //printf("Erro ao abrir o diretório %s\n", nome_dir);
         return;
     }
-
-    // Percorre os histogramas no diretório
+    
+    // Percorre todos os arquivos do diretorio
     while ((entrada = readdir(diretorio)) != NULL) {
-        if (imagem_valida(entrada->d_name) == 2) {
+        if(strstr(entrada->d_name, ".pgm") != NULL){
 
-            sprintf(caminho_lbp, "histogramas/%s", entrada->d_name);
+            sprintf(caminho_img, "%s/%s", nome_dir, entrada->d_name);
 
-            arquivo_diretorio = fopen(caminho_lbp, "rb");
+            // Gera nome do arquivo .lbp
+            ext = strrchr(entrada->d_name, '.');
+            if (ext != NULL)
+                *ext = '\0'; 
+            sprintf(nome_lbp, "%s.lbp", entrada->d_name);
 
-            tam = le_histograma_lbp(arquivo_diretorio, histograma_similar, entrada->d_name);
-            distancia = calcula_distancia(histograma_base, histograma_similar, tam);
+            sprintf(caminho_lbp, "%s/%s", nome_dir, nome_lbp);
 
-            strcpy(nome_similar, entrada->d_name);    
-            printf(": %s %f\n", nome_similar, menor_distancia);
+            // Gera o arquivo LBP se ele não existir
+            if (access(caminho_lbp, F_OK) == -1) {
+                    imagemPGM imagem;
+                    le_pgm(caminho_img, &formato, &imagem.largura, 
+                            &imagem.altura, &max_pix, &imagem.pixels);
+                    calcula_lbp(&imagem, &img_lbp);
+                    escreve_lbp(caminho_lbp, img_lbp, imagem.largura * imagem.altura);
 
-            if (distancia < menor_distancia && distancia != 0.0) {
-                menor_distancia = distancia;
-                strcpy(nome_similar, entrada->d_name);
+                    free(img_lbp);
+                    free(imagem.pixels);
             }
-
-            fclose(arquivo_diretorio);
         }
     }
 
     closedir(diretorio);
-    free(histograma_base);
-    free(histograma_similar);
-
-
-    printf("Imagem mais similar: %s %f\n", nome_similar, menor_distancia);
 }
 
-int imagem_valida(char *nome_img_entrada) {
-    char *extensao = strrchr(nome_img_entrada, '.');
+void compara_imagens(char caminho_img[], const char *nome_dir) { 
+    DIR *diretorio;
+    struct dirent *entrada;
+    imagemPGM img_entrada;
+    unsigned char *img_lbp = NULL, *img_lbp_base = NULL;
+    char formato;
+    double dist = 0, menor_dist = INFINITY;
+    char caminho_lbp[2 * MAX_NOME] = "", nome_img_similar[MAX_NOME] = "";
+    int tam_vet, max_pix;
+    float histograma_normalizado_entrada[TAM];
 
-    if (extensao != NULL && strcmp(extensao, ".pgm") == 0)
-        return 1;
-    else if (extensao != NULL && strcmp(extensao, ".lbp") == 0)
-        return 2;
+    le_pgm(caminho_img, &formato, &img_entrada.largura, &img_entrada.altura, &max_pix, &img_entrada.pixels);
+    calcula_lbp(&img_entrada, &img_lbp); 
+    manipula_dir(nome_dir);    
+    
+    // Gera o histograma normalizado da imagem de entrada
+    for (int i = 0; i < TAM; i++) {
+        histograma_normalizado_entrada[i] = (float)0; // Inicializa com zero
+    }
 
-    return 0;
-}
+    // Calculo do histograma normalizado da imagem de entrada
+    for (int i = 0; i < img_entrada.largura * img_entrada.altura; i++) {
+        histograma_normalizado_entrada[img_lbp[i]]++;
+    }
+    
+    for (int i = 0; i < TAM; i++) {
+        histograma_normalizado_entrada[i] /= (img_entrada.largura * img_entrada.altura);
+    }
 
-void aloca_lbp(imagemPGM *imagem, imagemPGM *lbp_imagem) {
-    lbp_imagem->largura = imagem->largura;
-    lbp_imagem->altura = imagem->altura;
-    lbp_imagem->max_pix = imagem->max_pix;
-    strcpy(lbp_imagem->formato, imagem->formato);
-    lbp_imagem->pixels = aloca_matriz_imagem(lbp_imagem);
-
-    if (lbp_imagem->pixels == NULL) {
-        fprintf(stderr, "Erro ao alocar matriz de pixels para imagem LBP\n");
-        free(imagem); 
+    // Percorre o diretorio para comparacao
+    diretorio = opendir(nome_dir);
+    if (diretorio == NULL) {
+        //printf("Erro ao abrir o diretório %s\n", nome_dir);
         return;
     }
-    
-    // Inicializa os valores da matriz de pixels da imagem lbp
-    for (int i = 0; i < lbp_imagem->altura; i++) {
-        for (int j = 0; j < lbp_imagem->largura; j++) {
-            lbp_imagem->pixels[i][j] = 0; 
+
+    while ((entrada = readdir(diretorio)) != NULL) {
+        if (strstr(entrada->d_name, ".lbp") != NULL) {
+
+            // Obtém o nome do arquivo sem extensão
+            char *extensao_lbp = strrchr(nome_img_similar, '.');
+            if (extensao_lbp != NULL) {
+                *extensao_lbp = '\0';  // Remove a extensão ".lbp"
+            }
+
+            // Pula a comparação se for o mesmo arquivo
+            if (strcmp(nome_img_similar, caminho_img) == 0) {
+                continue;  
+            }
+
+            sprintf(caminho_lbp, "%s/%s", nome_dir, entrada->d_name);
+
+            tam_vet = img_entrada.largura * img_entrada.altura;
+
+            // Le os dados LBP do arquivo
+            le_lbp(caminho_lbp, &img_lbp_base, tam_vet);
+
+            // Normaliza o histograma da imagem base
+            float histograma_normalizado_base[TAM];
+            for (int i = 0; i < TAM; i++) {
+                histograma_normalizado_base[i] = (float)0; 
+            }
+
+            for (int i = 0; i < tam_vet; i++) {
+                histograma_normalizado_base[img_lbp_base[i]]++;
+            }
+            
+            for (int i = 0; i < TAM; i++) {
+                histograma_normalizado_base[i] /= tam_vet; 
+            }
+
+            // Calcula a distância utilizando os histogramas normalizados
+            dist = calcula_dist(histograma_normalizado_entrada, histograma_normalizado_base, TAM);
+
+
+            if (dist < menor_dist && dist != 0.0) {
+                menor_dist = dist;
+                strcpy(nome_img_similar, entrada->d_name);
+            }
+
+            free(img_lbp_base);
         }
     }
+
+    closedir(diretorio);
+
+    printf("Imagem mais similar: %s %.6f\n", nome_img_similar, menor_dist);
+
+    // Libera memória após o uso
+    if (img_entrada.pixels != NULL) {
+        free(img_entrada.pixels);
+        img_entrada.pixels = NULL; 
+    }
+    free(img_entrada.pixels);
+    free(img_lbp);
 }
 
-int **aloca_matriz_imagem (imagemPGM *imagem){
-    int **pixels;
+void escreve_imagens(char caminho_img[], char caminho_saida[]){
+    imagemPGM img_entrada;
+    unsigned char *img_saida = NULL;
+    FILE *arquivo;
+    char formato[3]; 
+    int largura, altura, max_pix, erro;
 
-    // Aloca um vetor para as linhas
-    pixels = (int **)malloc(imagem->altura * sizeof(int *));
-    
-    if (pixels == NULL){
-        printf("Erro ao alocar memória para a imagem\n");
-        return NULL;
+    // Lê a imagem de entrada
+    erro = le_pgm(caminho_img, formato, &img_entrada.largura, &img_entrada.altura, 
+           &max_pix, &img_entrada.pixels);
+
+    if (erro) {
+        return;
     }
 
-    // Aloca um vetor para as colunas
-    for (int i = 0; i < imagem->altura; i++){
-        pixels[i] = (int *)malloc(imagem->largura * sizeof(int));
-        if (pixels[i] == NULL){
-            printf("Erro ao alocar memória para a imagem %d\n", i);
-            for (int j = 0; j < i; j++)
-                free(pixels[j]);
-            free(pixels);
-            return NULL;
+    // Calcula o LBP da imagem de entrada
+    calcula_lbp(&img_entrada, &img_saida);
+
+    largura = img_entrada.largura;
+    altura = img_entrada.altura;
+
+    // Abre o arquivo de saída para escrita
+    arquivo = fopen(caminho_saida, "wb");
+    if (arquivo == NULL) {
+        //printf("Erro ao abrir o arquivo %s\n", caminho_saida);
+        return;
+    }
+
+    // Escreve o cabeçalho PGM no arquivo de saída
+    fprintf(arquivo, "%s\n%d %d\n%d\n", formato, largura, altura, max_pix);
+
+    // Escreve os pixels no formato correspondente (P2 ou P5)
+    if (strcmp(formato, "P2") == 0) {
+        for (int i = 0; i < largura * altura; i++) {
+            fprintf(arquivo, "%d ", img_saida[i]);
+            if ((i + 1) % largura == 0) {
+                fprintf(arquivo, "\n"); 
+            }
         }
+    } 
+
+    else if (strcmp(formato, "P5") == 0) {
+        fwrite(img_saida, sizeof(unsigned char), largura * altura, arquivo);
+    } 
+
+    else {
+        fclose(arquivo);
+        return;
     }
 
-    return pixels;
-}
+    // Libera a memória usada pelos pixels
+    free(img_saida);
+    free(img_entrada.pixels);
 
-void libera_memoria(imagemPGM *imagem){
-    for (int i = 0; i < imagem->altura; i++)
-        free(imagem->pixels[i]);
-    free(imagem->pixels);
 
+    fclose(arquivo);
 }
