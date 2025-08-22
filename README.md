@@ -1,4 +1,4 @@
-# 🖼️ Trabalho Prático 1 - Estratégias de Comparação de Imagens
+# 🖼️ Estratégias de Comparação de Imagens
 
 ## 📌 Sobre
 Este projeto tem como objetivo **comparar imagens no formato PGM** utilizando o método **Local Binary Pattern (LBP)** para **extração de características**.  
